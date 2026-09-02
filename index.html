@@ -1,0 +1,465 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>Anant — Archive</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<script src="https://cdn.jsdelivr.net/npm/gsap@3.12.5/dist/gsap.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,300;0,9..144,500;0,9..144,600;1,9..144,500&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#0B0E14;
+    --bg-deep:#06070B;
+    --panel:#12161F;
+    --panel-line:#232A38;
+    --brass:#C9963C;
+    --brass-dim:#8A6B33;
+    --ink:#EDE6D8;
+    --ink-dim:#8B93A3;
+  }
+  *{box-sizing:border-box}
+  html,body{background:var(--bg-deep);color:var(--ink);font-family:'Fraunces',serif;}
+  .mono{font-family:'JetBrains Mono',monospace;}
+  ::selection{background:var(--brass);color:#0B0E14;}
+
+  .grain::before{
+    content:"";position:fixed;inset:0;pointer-events:none;z-index:50;opacity:.05;
+    background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='120' height='120'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+  }
+
+  .disc{
+    width: 260px; height:260px; border-radius:50%;
+    background:
+      radial-gradient(circle at 50% 50%, var(--panel) 0 14%, transparent 14.2%),
+      repeating-radial-gradient(circle at 50% 50%, #14181f 0 2px, #191d26 2px 4px);
+    box-shadow: 0 30px 60px -20px rgba(0,0,0,.8), inset 0 0 40px rgba(0,0,0,.6);
+    position:relative;
+    border: 1px solid #262c39;
+  }
+  .disc-label{
+    position:absolute; inset:0; margin:auto; width:34%; height:34%; border-radius:50%;
+    background: linear-gradient(155deg, var(--brass), #7a5a25);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow: 0 4px 14px rgba(0,0,0,.5), inset 0 0 0 1px rgba(0,0,0,.25);
+    overflow:hidden;
+  }
+  .disc-label img{width:100%;height:100%;object-fit:cover;}
+  .disc-hole{
+    position:absolute; inset:0; margin:auto; width:10px; height:10px; border-radius:50%;
+    background:var(--bg-deep); box-shadow: inset 0 0 3px rgba(0,0,0,.8);
+  }
+  .spin{ animation: spin 6s linear infinite; }
+  @keyframes spin{ from{transform:rotate(0deg)} to{transform:rotate(360deg)} }
+
+  .tonearm{
+    position:absolute; top:-14px; right:-6px; width:110px; height:110px;
+    transform-origin: 92% 8%;
+    transform: rotate(-28deg);
+    transition: transform .6s cubic-bezier(.2,.9,.25,1);
+    pointer-events:none;
+  }
+  .tonearm.down{ transform: rotate(-6deg); }
+
+  .ctrl-btn{
+    width:46px;height:46px;border-radius:9999px;
+    display:flex;align-items:center;justify-content:center;
+    background:var(--panel); border:1px solid var(--panel-line);
+    color:var(--ink); transition:.2s;
+  }
+  .ctrl-btn:hover{ border-color:var(--brass); color:var(--brass); }
+  .ctrl-btn.main{
+    width:64px;height:64px; background:var(--brass); color:#0B0E14; border:none;
+  }
+  .ctrl-btn.main:hover{ filter:brightness(1.08); color:#0B0E14; }
+
+  .track-row{
+    border-bottom:1px solid var(--panel-line);
+    transition:.15s;
+  }
+  .track-row:hover{ background:rgba(201,150,60,.05); }
+  .track-row.active{ background:rgba(201,150,60,.08); }
+  .track-row.active .track-title{ color:var(--brass); }
+
+  .progress-track{ background:#1B212D; height:3px; border-radius:2px; overflow:hidden; cursor:pointer; }
+  .progress-fill{ background:var(--brass); height:100%; width:0%; }
+
+  input[type=file]::file-selector-button{
+    background:var(--panel); color:var(--ink); border:1px solid var(--panel-line);
+    padding:.5rem .9rem; border-radius:.4rem; font-family:'JetBrains Mono',monospace; font-size:.75rem;
+    margin-right:.75rem; cursor:pointer;
+  }
+  input[type=file]::file-selector-button:hover{ border-color:var(--brass); }
+
+  .field{
+    background:var(--panel); border:1px solid var(--panel-line); color:var(--ink);
+    border-radius:.4rem; padding:.65rem .85rem; width:100%; outline:none;
+  }
+  .field:focus{ border-color:var(--brass); }
+
+  .fade-in{ opacity:0; transform:translateY(14px); }
+</style>
+</head>
+<body class="grain min-h-screen">
+
+<!-- ================= PUBLIC PLAYER ================= -->
+<div id="view-public" class="min-h-screen flex flex-col">
+
+  <header class="px-6 pt-8 pb-4 flex items-center justify-between">
+    <div>
+      <div class="mono text-xs tracking-wide" style="color:var(--ink-dim)">personal archive</div>
+      <div class="text-lg" style="color:var(--ink)">Anant</div>
+    </div>
+    <div id="song-count" class="mono text-xs" style="color:var(--ink-dim)"></div>
+  </header>
+
+  <main class="flex-1 flex flex-col items-center justify-center px-6 py-6">
+    <div class="relative fade-in" id="disc-wrap">
+      <svg class="tonearm" id="tonearm" viewBox="0 0 110 110">
+        <circle cx="96" cy="10" r="7" fill="#2a3040" stroke="#3a4256" stroke-width="1"/>
+        <rect x="90" y="8" width="4" height="70" rx="2" fill="#2a3040" transform="rotate(24 92 10)"/>
+        <circle cx="34" cy="66" r="4" fill="var(--brass)"/>
+      </svg>
+      <div class="disc" id="disc">
+        <div class="disc-label" id="disc-label"></div>
+        <div class="disc-hole"></div>
+      </div>
+    </div>
+
+    <div class="text-center mt-8 fade-in" id="now-playing">
+      <h1 class="text-2xl md:text-3xl" id="now-title" style="color:var(--ink)">Select a track</h1>
+      <div class="mono text-xs mt-2" style="color:var(--ink-dim)" id="now-album">—</div>
+    </div>
+
+    <div class="w-full max-w-sm mt-6 fade-in" id="progress-wrap">
+      <div class="progress-track" id="progress-track">
+        <div class="progress-fill" id="progress-fill"></div>
+      </div>
+      <div class="flex justify-between mono text-[10px] mt-1.5" style="color:var(--ink-dim)">
+        <span id="time-current">0:00</span>
+        <span id="time-total">0:00</span>
+      </div>
+    </div>
+
+    <div class="flex items-center gap-5 mt-7 fade-in" id="controls">
+      <button class="ctrl-btn" id="btn-prev" aria-label="Previous">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M6 6h2v12H6zm3.5 6L18 6v12z"/></svg>
+      </button>
+      <button class="ctrl-btn main" id="btn-play" aria-label="Play">
+        <svg id="icon-play" width="20" height="20" viewBox="0 0 24 24" fill="currentColor"><path d="M8 5v14l11-7z"/></svg>
+        <svg id="icon-pause" width="20" height="20" viewBox="0 0 24 24" fill="currentColor" style="display:none"><path d="M6 5h4v14H6zm8 0h4v14h-4z"/></svg>
+      </button>
+      <button class="ctrl-btn" id="btn-next" aria-label="Next">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor"><path d="M16 6h2v12h-2zM6 6l8.5 6L6 18z"/></svg>
+      </button>
+    </div>
+  </main>
+
+  <section class="px-4 pb-10 max-w-xl mx-auto w-full" id="tracklist-section">
+    <div class="mono text-xs mb-2 px-2" style="color:var(--ink-dim)">tracklist</div>
+    <div id="tracklist" class="rounded-lg overflow-hidden" style="background:var(--panel);border:1px solid var(--panel-line)"></div>
+    <div id="empty-state" class="hidden text-center py-10 mono text-xs" style="color:var(--ink-dim)">
+      No recordings yet. Check back soon.
+    </div>
+  </section>
+
+  <footer class="text-center pb-6 mono text-[10px]" style="color:var(--panel-line)">
+    <a href="#admin" style="color:inherit" onclick="location.reload()">·</a>
+  </footer>
+</div>
+
+<!-- ================= ADMIN ================= -->
+<div id="view-admin" class="hidden min-h-screen px-6 py-10 max-w-md mx-auto">
+
+  <div id="admin-login">
+    <div class="mono text-xs mb-1" style="color:var(--ink-dim)">admin</div>
+    <h2 class="text-2xl mb-6">Sign in</h2>
+    <div class="space-y-3">
+      <input type="email" id="login-email" class="field" placeholder="Email">
+      <input type="password" id="login-password" class="field" placeholder="Password">
+      <button id="btn-login" class="w-full py-3 rounded mono text-xs" style="background:var(--brass);color:#0B0E14">Sign in</button>
+      <div id="login-error" class="text-xs hidden" style="color:#d9765a"></div>
+    </div>
+    <a href="/" class="block text-center mono text-[10px] mt-8" style="color:var(--ink-dim)">← back to archive</a>
+  </div>
+
+  <div id="admin-panel" class="hidden">
+    <div class="flex items-center justify-between mb-6">
+      <h2 class="text-2xl">Upload</h2>
+      <button id="btn-logout" class="mono text-[10px]" style="color:var(--ink-dim)">sign out</button>
+    </div>
+
+    <div class="space-y-3 mb-10">
+      <input type="text" id="up-title" class="field" placeholder="Song title">
+      <input type="text" id="up-album" class="field" placeholder="Album (optional)">
+      <div>
+        <label class="mono text-[10px] block mb-1" style="color:var(--ink-dim)">audio file</label>
+        <input type="file" id="up-audio" accept="audio/*" class="field">
+      </div>
+      <div>
+        <label class="mono text-[10px] block mb-1" style="color:var(--ink-dim)">cover image (optional)</label>
+        <input type="file" id="up-cover" accept="image/*" class="field">
+      </div>
+      <button id="btn-upload" class="w-full py-3 rounded mono text-xs" style="background:var(--brass);color:#0B0E14">Upload track</button>
+      <div id="upload-status" class="mono text-[10px]" style="color:var(--ink-dim)"></div>
+    </div>
+
+    <div class="mono text-xs mb-2" style="color:var(--ink-dim)">manage tracks</div>
+    <div id="admin-list" class="rounded-lg overflow-hidden" style="background:var(--panel);border:1px solid var(--panel-line)"></div>
+  </div>
+</div>
+
+<audio id="audio-el" preload="metadata"></audio>
+
+<script>
+// ====== SUPABASE CONFIG — paste your values here ======
+const SUPABASE_URL = "https://pyhgkovkpmhkqsnnhtop.supabase.co";
+const SUPABASE_ANON_KEY = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InB5aGdrb3ZrcG1oa3Fzbm5odG9wIiwicm9sZSI6ImFub24iLCJpYXQiOjE3ODgzNTA4ODIsImV4cCI6MjEwMzkyNjg4Mn0.gD5p-234kdAsuTXuonfPWX5WDQpbPLE_Bl_OVExAx5Q";
+// ========================================================
+
+const sb = supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+
+let songs = [];
+let currentIndex = -1;
+let isPlaying = false;
+
+const audioEl = document.getElementById('audio-el');
+const discLabel = document.getElementById('disc-label');
+const disc = document.getElementById('disc');
+const tonearm = document.getElementById('tonearm');
+const nowTitle = document.getElementById('now-title');
+const nowAlbum = document.getElementById('now-album');
+const iconPlay = document.getElementById('icon-play');
+const iconPause = document.getElementById('icon-pause');
+const progressFill = document.getElementById('progress-fill');
+const progressTrack = document.getElementById('progress-track');
+const timeCurrent = document.getElementById('time-current');
+const timeTotal = document.getElementById('time-total');
+const tracklistEl = document.getElementById('tracklist');
+const emptyState = document.getElementById('empty-state');
+const songCount = document.getElementById('song-count');
+
+function fmtTime(s){
+  if(!isFinite(s)) return '0:00';
+  const m = Math.floor(s/60), sec = Math.floor(s%60);
+  return m + ':' + String(sec).padStart(2,'0');
+}
+
+async function loadSongs(){
+  const { data, error } = await sb.from('songs').select('*').order('created_at', { ascending:false });
+  if(error){ console.error(error); return; }
+  songs = data || [];
+  renderTracklist();
+  renderAdminList();
+}
+
+function renderTracklist(){
+  tracklistEl.innerHTML = '';
+  if(songs.length === 0){
+    emptyState.classList.remove('hidden');
+    songCount.textContent = '';
+    return;
+  }
+  emptyState.classList.add('hidden');
+  songCount.textContent = songs.length + ' track' + (songs.length>1?'s':'');
+  songs.forEach((song, i) => {
+    const row = document.createElement('div');
+    row.className = 'track-row px-4 py-3 flex items-center gap-3 cursor-pointer' + (i===currentIndex?' active':'');
+    row.innerHTML = `
+      <div class="mono text-[10px] w-5" style="color:var(--ink-dim)">${String(i+1).padStart(2,'0')}</div>
+      <div class="flex-1 min-w-0">
+        <div class="track-title text-sm truncate" style="color:var(--ink)">${escapeHtml(song.title)}</div>
+        <div class="mono text-[10px] truncate" style="color:var(--ink-dim)">${escapeHtml(song.album || '')}</div>
+      </div>
+    `;
+    row.onclick = () => playSong(i);
+    tracklistEl.appendChild(row);
+  });
+}
+
+function escapeHtml(s){
+  const d = document.createElement('div');
+  d.textContent = s || '';
+  return d.innerHTML;
+}
+
+function playSong(i){
+  if(i < 0 || i >= songs.length) return;
+  currentIndex = i;
+  const song = songs[i];
+  audioEl.src = song.audio_url;
+  audioEl.play();
+  nowTitle.textContent = song.title;
+  nowAlbum.textContent = song.album || '';
+  discLabel.innerHTML = song.cover_url ? `<img src="${song.cover_url}" alt="">` : '';
+  renderTracklist();
+}
+
+function togglePlay(){
+  if(currentIndex === -1){
+    if(songs.length) playSong(0);
+    return;
+  }
+  if(audioEl.paused){ audioEl.play(); } else { audioEl.pause(); }
+}
+
+audioEl.addEventListener('play', () => {
+  isPlaying = true;
+  iconPlay.style.display = 'none';
+  iconPause.style.display = 'block';
+  disc.classList.add('spin');
+  tonearm.classList.add('down');
+});
+audioEl.addEventListener('pause', () => {
+  isPlaying = false;
+  iconPlay.style.display = 'block';
+  iconPause.style.display = 'none';
+  disc.classList.remove('spin');
+  tonearm.classList.remove('down');
+});
+audioEl.addEventListener('timeupdate', () => {
+  if(!audioEl.duration) return;
+  progressFill.style.width = (audioEl.currentTime/audioEl.duration*100) + '%';
+  timeCurrent.textContent = fmtTime(audioEl.currentTime);
+  timeTotal.textContent = fmtTime(audioEl.duration);
+});
+audioEl.addEventListener('ended', () => {
+  if(currentIndex < songs.length-1) playSong(currentIndex+1);
+});
+progressTrack.addEventListener('click', (e) => {
+  if(!audioEl.duration) return;
+  const rect = progressTrack.getBoundingClientRect();
+  const pct = (e.clientX - rect.left)/rect.width;
+  audioEl.currentTime = pct * audioEl.duration;
+});
+
+document.getElementById('btn-play').onclick = togglePlay;
+document.getElementById('btn-next').onclick = () => { if(currentIndex < songs.length-1) playSong(currentIndex+1); };
+document.getElementById('btn-prev').onclick = () => { if(currentIndex > 0) playSong(currentIndex-1); };
+
+// ====== ADMIN ======
+async function checkAuth(){
+  const { data:{ session } } = await sb.auth.getSession();
+  if(session){
+    document.getElementById('admin-login').classList.add('hidden');
+    document.getElementById('admin-panel').classList.remove('hidden');
+  } else {
+    document.getElementById('admin-login').classList.remove('hidden');
+    document.getElementById('admin-panel').classList.add('hidden');
+  }
+}
+
+document.getElementById('btn-login').onclick = async () => {
+  const email = document.getElementById('login-email').value.trim();
+  const password = document.getElementById('login-password').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('hidden');
+  const { error } = await sb.auth.signInWithPassword({ email, password });
+  if(error){
+    errEl.textContent = error.message;
+    errEl.classList.remove('hidden');
+    return;
+  }
+  checkAuth();
+};
+
+document.getElementById('btn-logout').onclick = async () => {
+  await sb.auth.signOut();
+  checkAuth();
+};
+
+document.getElementById('btn-upload').onclick = async () => {
+  const title = document.getElementById('up-title').value.trim();
+  const album = document.getElementById('up-album').value.trim();
+  const audioFile = document.getElementById('up-audio').files[0];
+  const coverFile = document.getElementById('up-cover').files[0];
+  const statusEl = document.getElementById('upload-status');
+
+  if(!title || !audioFile){
+    statusEl.textContent = 'Title and audio file are required.';
+    return;
+  }
+
+  statusEl.textContent = 'Uploading audio...';
+  const audioPath = Date.now() + '_' + audioFile.name.replace(/\s+/g,'_');
+  const { error: audioErr } = await sb.storage.from('audio').upload(audioPath, audioFile);
+  if(audioErr){ statusEl.textContent = 'Audio upload failed: ' + audioErr.message; return; }
+  const { data: audioPub } = sb.storage.from('audio').getPublicUrl(audioPath);
+
+  let coverUrl = null;
+  if(coverFile){
+    statusEl.textContent = 'Uploading cover...';
+    const coverPath = Date.now() + '_' + coverFile.name.replace(/\s+/g,'_');
+    const { error: coverErr } = await sb.storage.from('covers').upload(coverPath, coverFile);
+    if(coverErr){ statusEl.textContent = 'Cover upload failed: ' + coverErr.message; return; }
+    const { data: coverPub } = sb.storage.from('covers').getPublicUrl(coverPath);
+    coverUrl = coverPub.publicUrl;
+  }
+
+  statusEl.textContent = 'Saving track...';
+  const { error: insertErr } = await sb.from('songs').insert({
+    title, album: album || null, audio_url: audioPub.publicUrl, cover_url: coverUrl
+  });
+  if(insertErr){ statusEl.textContent = 'Save failed: ' + insertErr.message; return; }
+
+  statusEl.textContent = 'Uploaded ✓';
+  document.getElementById('up-title').value = '';
+  document.getElementById('up-album').value = '';
+  document.getElementById('up-audio').value = '';
+  document.getElementById('up-cover').value = '';
+  loadSongs();
+};
+
+function renderAdminList(){
+  const list = document.getElementById('admin-list');
+  if(!list) return;
+  list.innerHTML = '';
+  songs.forEach(song => {
+    const row = document.createElement('div');
+    row.className = 'track-row px-4 py-3 flex items-center justify-between';
+    row.innerHTML = `
+      <div class="min-w-0">
+        <div class="text-sm truncate" style="color:var(--ink)">${escapeHtml(song.title)}</div>
+        <div class="mono text-[10px]" style="color:var(--ink-dim)">${escapeHtml(song.album||'')}</div>
+      </div>
+      <button class="mono text-[10px]" style="color:#d9765a" data-id="${song.id}">delete</button>
+    `;
+    row.querySelector('button').onclick = () => deleteSong(song.id);
+    list.appendChild(row);
+  });
+}
+
+async function deleteSong(id){
+  if(!confirm('Delete this track?')) return;
+  await sb.from('songs').delete().eq('id', id);
+  loadSongs();
+}
+
+// ====== ROUTING ======
+function route(){
+  if(location.hash === '#admin'){
+    document.getElementById('view-public').classList.add('hidden');
+    document.getElementById('view-admin').classList.remove('hidden');
+    checkAuth();
+  } else {
+    document.getElementById('view-public').classList.remove('hidden');
+    document.getElementById('view-admin').classList.add('hidden');
+  }
+}
+window.addEventListener('hashchange', route);
+route();
+
+// entrance animation
+window.addEventListener('load', () => {
+  gsap.to('#disc-wrap', { opacity:1, y:0, duration:.8, ease:'power2.out' });
+  gsap.to('#now-playing', { opacity:1, y:0, duration:.8, delay:.15, ease:'power2.out' });
+  gsap.to('#progress-wrap', { opacity:1, y:0, duration:.8, delay:.25, ease:'power2.out' });
+  gsap.to('#controls', { opacity:1, y:0, duration:.8, delay:.35, ease:'power2.out' });
+});
+
+loadSongs();
+</script>
+</body>
+</html>
