@@ -837,15 +837,20 @@ function checkResume(){
 
 // ---------- NOW PLAYING open/close ----------
 function openNowPlaying(){
-  $('screen-now-playing').classList.remove('hidden');
-  $('screen-now-playing').style.opacity = '1';
-  $('screen-now-playing').style.transform = 'none';
+  const screen = $('screen-now-playing');
+  screen.classList.remove('hidden');
+  screen.style.display = 'block';
+  screen.style.opacity = '1';
+  screen.style.transform = 'none';
   $('mini-player').classList.add('hidden');
 }
-function collapseNowPlaying(){ $('screen-now-playing').classList.add('hidden'); if(currentSong) $('mini-player').classList.remove('hidden'); }
-$('btn-collapse').onclick = collapseNowPlaying;
-$('mini-tap-area').addEventListener('click', (e) => { if(e.target.closest('#mini-play') || e.target.closest('#mini-next')) return; openNowPlaying(); });
 
+function collapseNowPlaying(){ 
+  const screen = $('screen-now-playing');
+  screen.classList.add('hidden'); 
+  screen.style.display = 'none';
+  if(currentSong) $('mini-player').classList.remove('hidden'); 
+}
 // ---------- QUEUE DRAWER ----------
 function openQueueDrawer(){ renderQueueDrawer(); $('queue-overlay').classList.remove('hidden'); $('queue-sheet').classList.remove('hidden'); $('queue-sheet').style.display='flex'; }
 function closeQueueDrawer(){ $('queue-overlay').classList.add('hidden'); $('queue-sheet').classList.add('hidden'); $('queue-sheet').style.display='none'; }
